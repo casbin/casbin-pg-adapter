@@ -1,27 +1,3 @@
-Go-pg Adapter
-====
-
-Go-pg Adapter is the [Go-pg](https://github.com/go-pg/pg) adapter for [Casbin](https://github.com/casbin/casbin). With this library, Casbin can load policy from PostgreSQL or save policy to it.
-
-## Installation
-
-    go get github.com/MonedaCacao/casbin-pg-adapter
-
-## Env Variables
-
-Populate .env with necessary environment variable values:
-
-    $ nano .env
-
-```
-DATABASE_ADDRESSES=
-DATABASE_USER_NAME=
-DATABSE_USER_PASSORD=
-```
-
-## Simple Postgres Example
-
-```go
 package main
 
 import (
@@ -54,12 +30,3 @@ func main() {
 	// Save the policy back to DB.
 	e.SavePolicy()
 }
-```
-
-## Getting Help
-
-- [Casbin](https://github.com/casbin/casbin)
-
-## License
-
-This project is under Apache 2.0 License. See the [LICENSE](LICENSE) file for the full license text.
