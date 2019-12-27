@@ -8,7 +8,7 @@ import (
 	"github.com/casbin/casbin/v2/persist"
 	"github.com/go-pg/pg/v9"
 	"github.com/go-pg/pg/v9/orm"
-	"golang.org/x/crypto/sha3"
+	"github.com/mmcloughlin/meow"
 )
 
 const (
@@ -27,9 +27,15 @@ type CasbinRule struct {
 	V5    string
 }
 
+type Filter struct {
+	P []string
+	G []string
+}
+
 // Adapter represents the github.com/go-pg/pg adapter for policy storage.
 type Adapter struct {
-	db *pg.DB
+	db       *pg.DB
+	filtered bool
 }
 
 // NewAdapter is the constructor for Adapter.
@@ -98,37 +104,37 @@ func (a *Adapter) createTable() error {
 	return nil
 }
 
-func loadPolicyLine(line *CasbinRule, model model.Model) {
+func (r *CasbinRule) String() string {
 	const prefixLine = ", "
 	var sb strings.Builder
 
-	sb.WriteString(line.PType)
-	if len(line.V0) > 0 {
+	sb.WriteString(r.PType)
+	if len(r.V0) > 0 {
 		sb.WriteString(prefixLine)
-		sb.WriteString(line.V0)
+		sb.WriteString(r.V0)
 	}
-	if len(line.V1) > 0 {
+	if len(r.V1) > 0 {
 		sb.WriteString(prefixLine)
-		sb.WriteString(line.V1)
+		sb.WriteString(r.V1)
 	}
-	if len(line.V2) > 0 {
+	if len(r.V2) > 0 {
 		sb.WriteString(prefixLine)
-		sb.WriteString(line.V2)
+		sb.WriteString(r.V2)
 	}
-	if len(line.V3) > 0 {
+	if len(r.V3) > 0 {
 		sb.WriteString(prefixLine)
-		sb.WriteString(line.V3)
+		sb.WriteString(r.V3)
 	}
-	if len(line.V4) > 0 {
+	if len(r.V4) > 0 {
 		sb.WriteString(prefixLine)
-		sb.WriteString(line.V4)
+		sb.WriteString(r.V4)
 	}
-	if len(line.V5) > 0 {
+	if len(r.V5) > 0 {
 		sb.WriteString(prefixLine)
-		sb.WriteString(line.V5)
+		sb.WriteString(r.V5)
 	}
 
-	persist.LoadPolicyLine(sb.String(), model)
+	return sb.String()
 }
 
 // LoadPolicy loads policy from database.
@@ -140,16 +146,17 @@ func (a *Adapter) LoadPolicy(model model.Model) error {
 	}
 
 	for _, line := range lines {
-		loadPolicyLine(line, model)
+		persist.LoadPolicyLine(line.String(), model)
 	}
+
+	a.filtered = false
 
 	return nil
 }
 
 func policyID(ptype string, rule []string) string {
 	data := strings.Join(append([]string{ptype}, rule...), ",")
-	sum := make([]byte, 64)
-	sha3.ShakeSum128(sum, []byte(data))
+	sum := meow.Checksum(0, []byte(data))
 	return fmt.Sprintf("%x", sum)
 }
 
@@ -247,4 +254,88 @@ func (a *Adapter) RemoveFilteredPolicy(sec string, ptype string, fieldIndex int,
 
 	_, err := query.Delete()
 	return err
+}
+
+func (a *Adapter) LoadFilteredPolicy(model model.Model, filter interface{}) error {
+	if filter == nil {
+		return a.LoadPolicy(model)
+	}
+
+	filterValue, ok := filter.(*Filter)
+	if !ok {
+		return fmt.Errorf("invalid filter type")
+	}
+	err := a.loadFilteredPolicy(model, filterValue, persist.LoadPolicyLine)
+	if err != nil {
+		return err
+	}
+	a.filtered = true
+	return nil
+}
+
+func buildQuery(query *orm.Query, values []string) (*orm.Query, error) {
+	for ind, v := range values {
+		if v == "" {
+			continue
+		}
+		switch ind {
+		case 0:
+			query = query.Where("v0 = ?", v)
+		case 1:
+			query = query.Where("v1 = ?", v)
+		case 2:
+			query = query.Where("v2 = ?", v)
+		case 3:
+			query = query.Where("v3 = ?", v)
+		case 4:
+			query = query.Where("v4 = ?", v)
+		case 5:
+			query = query.Where("v5 = ?", v)
+		default:
+			return nil, fmt.Errorf("filter has more values than expected, should not exceed 6 values")
+		}
+	}
+	return query, nil
+}
+
+func (a *Adapter) loadFilteredPolicy(model model.Model, filter *Filter, handler func(string, model.Model)) error {
+	if filter.P != nil {
+		lines := []*CasbinRule{}
+
+		query := a.db.Model(&lines).Where("p_type = 'p'")
+		query, err := buildQuery(query, filter.P)
+		if err != nil {
+			return err
+		}
+		err = query.Select()
+		if err != nil {
+			return err
+		}
+
+		for _, line := range lines {
+			handler(line.String(), model)
+		}
+	}
+	if filter.G != nil {
+		lines := []*CasbinRule{}
+
+		query := a.db.Model(&lines).Where("p_type = 'g'")
+		query, err := buildQuery(query, filter.G)
+		if err != nil {
+			return err
+		}
+		err = query.Select()
+		if err != nil {
+			return err
+		}
+
+		for _, line := range lines {
+			handler(line.String(), model)
+		}
+	}
+	return nil
+}
+
+func (a *Adapter) IsFiltered() bool {
+	return a.filtered
 }
