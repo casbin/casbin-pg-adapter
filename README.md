@@ -15,7 +15,7 @@ import (
 	"os"
 
 	pgadapter "github.com/pckhoi/casbin-pg-adapter"
-	"github.com/casbin/casbin"
+	"github.com/casbin/casbin/v2"
 )
 
 func main() {
@@ -23,6 +23,12 @@ func main() {
 	// The adapter will use the Postgres database named "casbin".
 	// If it doesn't exist, the adapter will create it automatically.
 	a, _ := pgadapter.NewAdapter(os.Getenv("PG_CONN")) // Your driver and data source.
+	// Alternatively, you can construct an adapter instance with *pg.Options:
+	// a, _ := pgadapter.NewAdapter(&pg.Options{
+	//     Database: "...",
+	//     User: "...",
+	//     Password: "...",
+	// })
 
 	// Or you can use an existing DB "abc" like this:
 	// The adapter will use the table named "casbin_rule".
@@ -42,6 +48,32 @@ func main() {
 
 	// Save the policy back to DB.
 	e.SavePolicy()
+}
+```
+
+## Support for FilteredAdapter interface
+
+You can [load a subset of policies](https://casbin.org/docs/en/policy-subset-loading) with this adapter:
+
+```go
+package main
+
+import (
+	"os"
+
+	"github.com/casbin/casbin/v2"
+	pgadapter "github.com/pckhoi/casbin-pg-adapter"
+)
+
+func main() {
+	a, _ := pgadapter.NewAdapter(os.Getenv("PG_CONN"))
+	e, _ := casbin.NewEnforcer("examples/rbac_model.conf", a)
+
+	e.LoadFilteredPolicy(&pgadapter.Filter{
+		P: []string{"", "data1"},
+		G: []string{"alice"},
+	})
+	...
 }
 ```
 
