@@ -1,13 +1,14 @@
 package pgadapter
 
 import (
-	"github.com/MonedaCacao/casbin-pg-adapter/config"
-	"github.com/casbin/casbin/model"
-	"github.com/casbin/casbin/persist"
-	"github.com/go-pg/pg"
-	"github.com/go-pg/pg/orm"
-	"log"
+	"fmt"
 	"strings"
+
+	"github.com/casbin/casbin/v2/model"
+	"github.com/casbin/casbin/v2/persist"
+	"github.com/go-pg/pg/v9"
+	"github.com/go-pg/pg/v9/orm"
+	"golang.org/x/crypto/sha3"
 )
 
 const (
@@ -16,7 +17,7 @@ const (
 
 // CasbinRule represents a rule in Casbin.
 type CasbinRule struct {
-	Id    int
+	ID    string
 	PType string
 	V0    string
 	V1    string
@@ -35,74 +36,55 @@ type Adapter struct {
 func finalizer(a *Adapter) {}
 
 // NewAdapter is the constructor for Adapter.
-// The adapter will automatically create a DB named "casbin"
-func NewAdapter() (*Adapter, error) {
-	a := Adapter{}
-
-	// Open the DB, create it if not existed.
-	err := a.open()
+// arg should be a PostgreS URL string or of type *pg.Options
+// The adapter will create a DB named "casbin" if it doesn't exist
+func NewAdapter(arg interface{}) (*Adapter, error) {
+	db, err := createCasbinDatabase(arg)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("pgadapter.NewAdapter: %v", err)
 	}
 
-	return &a, nil
+	a := &Adapter{db: db}
+
+	if err := a.createTable(); err != nil {
+		return nil, fmt.Errorf("pgadapter.NewAdapter: %v", err)
+	}
+
+	return a, nil
 }
 
-func (a *Adapter) createDatabase() error {
+func createCasbinDatabase(arg interface{}) (*pg.DB, error) {
+	var opts *pg.Options
 	var err error
-	var db *pg.DB
+	if connURL, ok := arg.(string); ok {
+		opts, err = pg.ParseURL(connURL)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		opts, ok = arg.(*pg.Options)
+		if !ok {
+			return nil, fmt.Errorf("must pass in a PostgreS URL string or an instance of *pg.Options, received %T instead", arg)
+		}
+	}
 
-	env := config.GetEnvVariables()
-	cfg := config.GetConfig(*env)
-
-	db = pg.Connect(&pg.Options{
-		Addr:     cfg.DatabaseAddresses,
-		User:     cfg.DatabaseUsername,
-		Password: cfg.DatabseUserPassord,
-	})
-
+	db := pg.Connect(opts)
 	defer db.Close()
 
 	_, err = db.Exec("CREATE DATABASE casbin")
-	if err != nil {
-		log.Println("can't create database", err)
-		return err
-	}
+	db.Close()
 
-	return nil
+	opts.Database = "casbin"
+	db = pg.Connect(opts)
+
+	return db, nil
 }
 
-func (a *Adapter) open() error {
-	var err error
-	var db *pg.DB
-
-	env := config.GetEnvVariables()
-	cfg := config.GetConfig(*env)
-
-	err = a.createDatabase()
-	if err != nil {
-		panic(err)
+// Close close database connection
+func (a *Adapter) Close() error {
+	if a != nil && a.db != nil {
+		return a.db.Close()
 	}
-
-	db = pg.Connect(&pg.Options{
-		Addr:     cfg.DatabaseAddresses,
-		User:     cfg.DatabaseUsername,
-		Password: cfg.DatabseUserPassord,
-		Database: "casbin",
-	})
-
-	a.db = db
-
-	return a.createTable()
-}
-
-func (a *Adapter) close() error {
-	err := a.db.Close()
-	if err != nil {
-		return err
-	}
-
-	a.db = nil
 	return nil
 }
 
@@ -116,15 +98,6 @@ func (a *Adapter) createTable() error {
 			return err
 		}
 	}
-	return nil
-}
-
-func (a *Adapter) dropTable() error {
-	err := a.db.DropTable(&CasbinRule{}, &orm.DropTableOptions{})
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -199,20 +172,16 @@ func savePolicyLine(ptype string, rule []string) *CasbinRule {
 		line.V5 = rule[5]
 	}
 
+	data := strings.Join(append([]string{ptype}, rule...), ",")
+	sum := make([]byte, 64)
+	sha3.ShakeSum128(sum, []byte(data))
+	line.ID = fmt.Sprintf("%x", sum)
+
 	return line
 }
 
 // SavePolicy saves policy to database.
 func (a *Adapter) SavePolicy(model model.Model) error {
-	err := a.dropTable()
-	if err != nil {
-		return err
-	}
-	err = a.createTable()
-	if err != nil {
-		return err
-	}
-
 	var lines []*CasbinRule
 
 	for ptype, ast := range model["p"] {
@@ -229,14 +198,18 @@ func (a *Adapter) SavePolicy(model model.Model) error {
 		}
 	}
 
-	err = a.db.Insert(&lines)
+	_, err := a.db.Model(&lines).
+		OnConflict("DO NOTHING").
+		Insert()
 	return err
 }
 
 // AddPolicy adds a policy rule to the storage.
 func (a *Adapter) AddPolicy(sec string, ptype string, rule []string) error {
 	line := savePolicyLine(ptype, rule)
-	err := a.db.Insert(line)
+	_, err := a.db.Model(line).
+		OnConflict("DO NOTHING").
+		Insert()
 	return err
 }
 

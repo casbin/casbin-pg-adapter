@@ -1,15 +1,11 @@
-module github.com/MonedaCacao/casbin-pg-adapter
+module github.com/pckhoi/casbin-pg-adapter
 
 go 1.12
 
 require (
 	github.com/casbin/casbin v1.9.1
-	github.com/go-pg/pg v8.0.5+incompatible
-	github.com/inconshreveable/log15 v0.0.0-20180818164646-67afb5ed74ec
-	github.com/jinzhu/inflection v1.0.0 // indirect
-	github.com/mattn/go-colorable v0.1.2 // indirect
-	github.com/onsi/ginkgo v1.8.0 // indirect
-	github.com/onsi/gomega v1.5.0 // indirect
-	github.com/spf13/viper v1.4.0
-	mellium.im/sasl v0.2.1 // indirect
+	github.com/casbin/casbin/v2 v2.1.2
+	github.com/go-pg/pg/v9 v9.1.0
+	github.com/stretchr/testify v1.4.0
+	golang.org/x/crypto v0.0.0-20191206172530-e9b2fee46413
 )
