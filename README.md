@@ -45,6 +45,14 @@ func main() {
 }
 ```
 
+## Run all tests
+
+    docker-compose run --rm go
+
+## Debug tests
+
+    docker-compose run --rm go dlv test github.com/pckhoi/casbin-pg-adapter
+
 ## Getting Help
 
 -   [Casbin](https://github.com/casbin/casbin)

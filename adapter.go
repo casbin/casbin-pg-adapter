@@ -32,9 +32,6 @@ type Adapter struct {
 	db *pg.DB
 }
 
-// finalizer is the destructor for Adapter.
-func finalizer(a *Adapter) {}
-
 // NewAdapter is the constructor for Adapter.
 // arg should be a PostgreS URL string or of type *pg.Options
 // The adapter will create a DB named "casbin" if it doesn't exist
@@ -149,6 +146,13 @@ func (a *Adapter) LoadPolicy(model model.Model) error {
 	return nil
 }
 
+func policyID(ptype string, rule []string) string {
+	data := strings.Join(append([]string{ptype}, rule...), ",")
+	sum := make([]byte, 64)
+	sha3.ShakeSum128(sum, []byte(data))
+	return fmt.Sprintf("%x", sum)
+}
+
 func savePolicyLine(ptype string, rule []string) *CasbinRule {
 	line := &CasbinRule{PType: ptype}
 
@@ -172,10 +176,7 @@ func savePolicyLine(ptype string, rule []string) *CasbinRule {
 		line.V5 = rule[5]
 	}
 
-	data := strings.Join(append([]string{ptype}, rule...), ",")
-	sum := make([]byte, 64)
-	sha3.ShakeSum128(sum, []byte(data))
-	line.ID = fmt.Sprintf("%x", sum)
+	line.ID = policyID(ptype, rule)
 
 	return line
 }
@@ -222,28 +223,28 @@ func (a *Adapter) RemovePolicy(sec string, ptype string, rule []string) error {
 
 // RemoveFilteredPolicy removes policy rules that match the filter from the storage.
 func (a *Adapter) RemoveFilteredPolicy(sec string, ptype string, fieldIndex int, fieldValues ...string) error {
-	line := &CasbinRule{PType: ptype}
+	query := a.db.Model((*CasbinRule)(nil)).Where("p_type = ?", ptype)
 
 	idx := fieldIndex + len(fieldValues)
-	if fieldIndex <= 0 && idx > 0 {
-		line.V0 = fieldValues[0-fieldIndex]
+	if fieldIndex <= 0 && idx > 0 && fieldValues[0-fieldIndex] != "" {
+		query = query.Where("v0 = ?", fieldValues[0-fieldIndex])
 	}
-	if fieldIndex <= 1 && idx > 1 {
-		line.V1 = fieldValues[1-fieldIndex]
+	if fieldIndex <= 1 && idx > 1 && fieldValues[1-fieldIndex] != "" {
+		query = query.Where("v1 = ?", fieldValues[1-fieldIndex])
 	}
-	if fieldIndex <= 2 && idx > 2 {
-		line.V2 = fieldValues[2-fieldIndex]
+	if fieldIndex <= 2 && idx > 2 && fieldValues[2-fieldIndex] != "" {
+		query = query.Where("v2 = ?", fieldValues[2-fieldIndex])
 	}
-	if fieldIndex <= 3 && idx > 3 {
-		line.V3 = fieldValues[3-fieldIndex]
+	if fieldIndex <= 3 && idx > 3 && fieldValues[3-fieldIndex] != "" {
+		query = query.Where("v3 = ?", fieldValues[3-fieldIndex])
 	}
-	if fieldIndex <= 4 && idx > 4 {
-		line.V4 = fieldValues[4-fieldIndex]
+	if fieldIndex <= 4 && idx > 4 && fieldValues[4-fieldIndex] != "" {
+		query = query.Where("v4 = ?", fieldValues[4-fieldIndex])
 	}
-	if fieldIndex <= 5 && idx > 5 {
-		line.V5 = fieldValues[5-fieldIndex]
+	if fieldIndex <= 5 && idx > 5 && fieldValues[5-fieldIndex] != "" {
+		query = query.Where("v5 = ?", fieldValues[5-fieldIndex])
 	}
 
-	err := a.db.Delete(line)
+	_, err := query.Delete()
 	return err
 }
