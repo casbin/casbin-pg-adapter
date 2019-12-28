@@ -1,4 +1,5 @@
 language: go
+sudo: false
 go:
   - 1.12.x
   - 1.13.x
@@ -6,4 +7,7 @@ env:
   - PG_CONN=postgresql://postgres:@localhost:5432/postgres?sslmode=disable
 services:
   - postgresql
-scripts: go test github.com/casbin/casbin-pg-adapter
+before_install:
+  - go get github.com/mattn/goveralls
+script:
+  - $HOME/gopath/bin/goveralls -service=travis-ci
