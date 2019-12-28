@@ -211,10 +211,13 @@ func (a *Adapter) SavePolicy(model model.Model) error {
 		}
 	}
 
-	_, err = a.db.Model(&lines).
-		OnConflict("DO NOTHING").
-		Insert()
-	return err
+	if len(lines) > 0 {
+		_, err = a.db.Model(&lines).
+			OnConflict("DO NOTHING").
+			Insert()
+		return err
+	}
+	return nil
 }
 
 // AddPolicy adds a policy rule to the storage.

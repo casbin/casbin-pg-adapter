@@ -221,6 +221,12 @@ func (s *AdapterTestSuite) TestSavePolicyClearPreviousData() {
 		_, err := s.e.RemovePolicy(p)
 		s.Require().NoError(err)
 	}
+	policies = s.e.GetGroupingPolicy()
+	policies = append(policies[:0:0], policies...)
+	for _, p := range policies {
+		_, err := s.e.RemoveGroupingPolicy(p)
+		s.Require().NoError(err)
+	}
 	s.assertPolicy(
 		[][]string{},
 		s.e.GetPolicy(),
