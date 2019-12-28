@@ -56,7 +56,10 @@ func (s *AdapterTestSuite) TearDownTest() {
 
 func (s *AdapterTestSuite) TestSaveLoad() {
 	s.Assert().False(s.e.IsFiltered())
-	s.assertPolicy([][]string{{"alice", "data1", "read"}, {"bob", "data2", "write"}, {"data2_admin", "data2", "read"}, {"data2_admin", "data2", "write"}}, s.e.GetPolicy())
+	s.assertPolicy(
+		[][]string{{"alice", "data1", "read"}, {"bob", "data2", "write"}, {"data2_admin", "data2", "read"}, {"data2_admin", "data2", "write"}},
+		s.e.GetPolicy(),
+	)
 }
 
 func (s *AdapterTestSuite) TestAutoSave() {
@@ -72,7 +75,10 @@ func (s *AdapterTestSuite) TestAutoSave() {
 	err = s.e.LoadPolicy()
 	s.Require().NoError(err)
 	// This is still the original policy.
-	s.assertPolicy([][]string{{"alice", "data1", "read"}, {"bob", "data2", "write"}, {"data2_admin", "data2", "read"}, {"data2_admin", "data2", "write"}}, s.e.GetPolicy())
+	s.assertPolicy(
+		[][]string{{"alice", "data1", "read"}, {"bob", "data2", "write"}, {"data2_admin", "data2", "read"}, {"data2_admin", "data2", "write"}},
+		s.e.GetPolicy(),
+	)
 
 	// Now we enable the AutoSave.
 	s.e.EnableAutoSave(true)
@@ -85,14 +91,20 @@ func (s *AdapterTestSuite) TestAutoSave() {
 	err = s.e.LoadPolicy()
 	s.Require().NoError(err)
 	// The policy has a new rule: {"alice", "data1", "write"}.
-	s.assertPolicy([][]string{{"alice", "data1", "read"}, {"bob", "data2", "write"}, {"data2_admin", "data2", "read"}, {"data2_admin", "data2", "write"}, {"alice", "data1", "write"}}, s.e.GetPolicy())
+	s.assertPolicy(
+		[][]string{{"alice", "data1", "read"}, {"bob", "data2", "write"}, {"data2_admin", "data2", "read"}, {"data2_admin", "data2", "write"}, {"alice", "data1", "write"}},
+		s.e.GetPolicy(),
+	)
 
 	// Aditional AddPolicy have no effect
 	_, err = s.e.AddPolicy("alice", "data1", "write")
 	s.Require().NoError(err)
 	err = s.e.LoadPolicy()
 	s.Require().NoError(err)
-	s.assertPolicy([][]string{{"alice", "data1", "read"}, {"bob", "data2", "write"}, {"data2_admin", "data2", "read"}, {"data2_admin", "data2", "write"}, {"alice", "data1", "write"}}, s.e.GetPolicy())
+	s.assertPolicy(
+		[][]string{{"alice", "data1", "read"}, {"bob", "data2", "write"}, {"data2_admin", "data2", "read"}, {"data2_admin", "data2", "write"}, {"alice", "data1", "write"}},
+		s.e.GetPolicy(),
+	)
 	s.Require().NoError(err)
 }
 
@@ -107,31 +119,46 @@ func (s *AdapterTestSuite) TestConstructorOptions() {
 	s.e, err = casbin.NewEnforcer("examples/rbac_model.conf", a)
 	s.Require().NoError(err)
 
-	s.assertPolicy([][]string{{"alice", "data1", "read"}, {"bob", "data2", "write"}, {"data2_admin", "data2", "read"}, {"data2_admin", "data2", "write"}}, s.e.GetPolicy())
+	s.assertPolicy(
+		[][]string{{"alice", "data1", "read"}, {"bob", "data2", "write"}, {"data2_admin", "data2", "read"}, {"data2_admin", "data2", "write"}},
+		s.e.GetPolicy(),
+	)
 }
 
 func (s *AdapterTestSuite) TestRemovePolicy() {
 	_, err := s.e.RemovePolicy("alice", "data1", "read")
 	s.Require().NoError(err)
 
-	s.assertPolicy([][]string{{"bob", "data2", "write"}, {"data2_admin", "data2", "read"}, {"data2_admin", "data2", "write"}}, s.e.GetPolicy())
+	s.assertPolicy(
+		[][]string{{"bob", "data2", "write"}, {"data2_admin", "data2", "read"}, {"data2_admin", "data2", "write"}},
+		s.e.GetPolicy(),
+	)
 
 	err = s.e.LoadPolicy()
 	s.Require().NoError(err)
 
-	s.assertPolicy([][]string{{"bob", "data2", "write"}, {"data2_admin", "data2", "read"}, {"data2_admin", "data2", "write"}}, s.e.GetPolicy())
+	s.assertPolicy(
+		[][]string{{"bob", "data2", "write"}, {"data2_admin", "data2", "read"}, {"data2_admin", "data2", "write"}},
+		s.e.GetPolicy(),
+	)
 }
 
 func (s *AdapterTestSuite) TestRemoveFilteredPolicy() {
 	_, err := s.e.RemoveFilteredPolicy(0, "", "data2")
 	s.Require().NoError(err)
 
-	s.assertPolicy([][]string{{"alice", "data1", "read"}}, s.e.GetPolicy())
+	s.assertPolicy(
+		[][]string{{"alice", "data1", "read"}},
+		s.e.GetPolicy(),
+	)
 
 	err = s.e.LoadPolicy()
 	s.Require().NoError(err)
 
-	s.assertPolicy([][]string{{"alice", "data1", "read"}}, s.e.GetPolicy())
+	s.assertPolicy(
+		[][]string{{"alice", "data1", "read"}},
+		s.e.GetPolicy(),
+	)
 }
 
 func (s *AdapterTestSuite) TestLoadFilteredPolicy() {
@@ -143,7 +170,10 @@ func (s *AdapterTestSuite) TestLoadFilteredPolicy() {
 	})
 	s.Require().NoError(err)
 	s.Assert().True(e.IsFiltered())
-	s.assertPolicy([][]string{{"alice", "data1", "read"}, {"data2_admin", "data2", "read"}}, e.GetPolicy())
+	s.assertPolicy(
+		[][]string{{"alice", "data1", "read"}, {"data2_admin", "data2", "read"}},
+		e.GetPolicy(),
+	)
 }
 
 func (s *AdapterTestSuite) TestLoadFilteredGroupingPolicy() {
@@ -176,7 +206,35 @@ func (s *AdapterTestSuite) TestLoadFilteredPolicyNilFilter() {
 	s.Require().NoError(err)
 
 	s.Assert().False(e.IsFiltered())
-	s.assertPolicy([][]string{{"alice", "data1", "read"}, {"bob", "data2", "write"}, {"data2_admin", "data2", "read"}, {"data2_admin", "data2", "write"}}, s.e.GetPolicy())
+	s.assertPolicy(
+		[][]string{{"alice", "data1", "read"}, {"bob", "data2", "write"}, {"data2_admin", "data2", "read"}, {"data2_admin", "data2", "write"}},
+		s.e.GetPolicy(),
+	)
+}
+
+func (s *AdapterTestSuite) TestSavePolicyClearPreviousData() {
+	s.e.EnableAutoSave(false)
+	policies := s.e.GetPolicy()
+	// clone slice to avoid shufling elements
+	policies = append(policies[:0:0], policies...)
+	for _, p := range policies {
+		_, err := s.e.RemovePolicy(p)
+		s.Require().NoError(err)
+	}
+	s.assertPolicy(
+		[][]string{},
+		s.e.GetPolicy(),
+	)
+
+	err := s.e.SavePolicy()
+	s.Require().NoError(err)
+
+	err = s.e.LoadPolicy()
+	s.Require().NoError(err)
+	s.assertPolicy(
+		[][]string{},
+		s.e.GetPolicy(),
+	)
 }
 
 func TestAdapterTestSuite(t *testing.T) {

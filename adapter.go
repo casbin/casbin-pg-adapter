@@ -190,6 +190,11 @@ func savePolicyLine(ptype string, rule []string) *CasbinRule {
 
 // SavePolicy saves policy to database.
 func (a *Adapter) SavePolicy(model model.Model) error {
+	_, err := a.db.Model((*CasbinRule)(nil)).Where("id IS NOT NULL").Delete()
+	if err != nil {
+		return err
+	}
+
 	var lines []*CasbinRule
 
 	for ptype, ast := range model["p"] {
@@ -206,7 +211,7 @@ func (a *Adapter) SavePolicy(model model.Model) error {
 		}
 	}
 
-	_, err := a.db.Model(&lines).
+	_, err = a.db.Model(&lines).
 		OnConflict("DO NOTHING").
 		Insert()
 	return err
