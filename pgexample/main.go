@@ -1,17 +1,15 @@
 package main
 
 import (
-	"os"
-
+	pgadapter "github.com/casbin/casbin-pg-adapter"
 	"github.com/casbin/casbin/v2"
-	pgadapter "github.com/pckhoi/casbin-pg-adapter"
 )
 
 func main() {
 	// Initialize a Go-pg adapter and use it in a Casbin enforcer:
 	// The adapter will use the Postgres database named "casbin".
 	// If it doesn't exist, the adapter will create it automatically.
-	a, _ := pgadapter.NewAdapter(os.Getenv("PG_CONN")) // Your driver and data source.
+	a, _ := pgadapter.NewAdapter("postgresql://postgres:password@postgres:5432/postgres?sslmode=disable") // Your driver and data source.
 	// Alternatively, you can construct an adapter instance with *pg.Options:
 	// a, _ := pgadapter.NewAdapter(&pg.Options{
 	//     Database: "...",

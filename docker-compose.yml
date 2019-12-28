@@ -22,7 +22,7 @@ services:
     command:
       - go
       - test
-      - github.com/pckhoi/casbin-pg-adapter
+      - github.com/casbin/casbin-pg-adapter
 
 volumes:
   gopkg:
