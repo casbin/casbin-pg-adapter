@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/casbin/casbin-pg-adapter.svg?branch=master)](https://travis-ci.org/casbin/casbin-pg-adapter)
+
 # Go-pg Adapter
 
 Go-pg Adapter is the [Go-pg](https://github.com/go-pg/pg) adapter for [Casbin](https://github.com/casbin/casbin). With this library, Casbin can load policy from PostgreSQL or save policy to it.
