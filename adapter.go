@@ -56,6 +56,16 @@ func NewAdapter(arg interface{}) (*Adapter, error) {
 	return a, nil
 }
 
+// NewAdapterByDB creates new Adapter by using existing DB connection
+// creates table from CasbinRule struct if it doesn't exist
+func NewAdapterByDB(db *pg.DB) (*Adapter, error) {
+	a := &Adapter{db: db}
+	if err := a.createTable(); err != nil {
+		return nil, fmt.Errorf("pgadapter.NewAdapter: %v", err)
+	}
+	return a, nil
+}
+
 func createCasbinDatabase(arg interface{}) (*pg.DB, error) {
 	var opts *pg.Options
 	var err error
