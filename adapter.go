@@ -11,10 +11,6 @@ import (
 	"github.com/mmcloughlin/meow"
 )
 
-const (
-	tableExistsErrorCode = "ERROR #42P07"
-)
-
 // CasbinRule represents a rule in Casbin.
 type CasbinRule struct {
 	ID    string
@@ -49,7 +45,7 @@ func NewAdapter(arg interface{}) (*Adapter, error) {
 
 	a := &Adapter{db: db}
 
-	if err := a.createTable(); err != nil {
+	if err := a.createTableifNotExists(); err != nil {
 		return nil, fmt.Errorf("pgadapter.NewAdapter: %v", err)
 	}
 
@@ -60,7 +56,7 @@ func NewAdapter(arg interface{}) (*Adapter, error) {
 // creates table from CasbinRule struct if it doesn't exist
 func NewAdapterByDB(db *pg.DB) (*Adapter, error) {
 	a := &Adapter{db: db}
-	if err := a.createTable(); err != nil {
+	if err := a.createTableifNotExists(); err != nil {
 		return nil, fmt.Errorf("pgadapter.NewAdapter: %v", err)
 	}
 	return a, nil
@@ -101,15 +97,13 @@ func (a *Adapter) Close() error {
 	return nil
 }
 
-func (a *Adapter) createTable() error {
+func (a *Adapter) createTableifNotExists() error {
 	err := a.db.CreateTable(&CasbinRule{}, &orm.CreateTableOptions{
-		Temp: false,
+		Temp:        false,
+		IfNotExists: true,
 	})
 	if err != nil {
-		errorCode := err.Error()[0:12]
-		if errorCode != tableExistsErrorCode {
-			return err
-		}
+		return err
 	}
 	return nil
 }
