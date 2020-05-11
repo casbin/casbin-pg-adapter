@@ -242,8 +242,10 @@ func (a *Adapter) AddPolicies(sec string, ptype string, rules [][]string) error 
 	}
 	
 	err := a.db.RunInTransaction(func(tx *pg.Tx) error {
-		_, err := tx.Model(&lines).OnConflict("DO NOTHING").Insert()
-        return err
+		_, err := tx.Model(&lines).
+		OnConflict("DO NOTHING").
+		Insert()
+		return err
 	})
 	
 	return err
@@ -265,8 +267,9 @@ func (a *Adapter) RemovePolicies(sec string, ptype string, rules [][]string) err
 	}
 
 	err := a.db.RunInTransaction(func(tx *pg.Tx) error {
-		_, err := tx.Model(&lines).Delete()
-        return err
+		_, err := tx.Model(&lines).
+		Delete()
+		return err
 	})
 	
 	return err
