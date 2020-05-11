@@ -220,7 +220,7 @@ func (a *Adapter) SavePolicy(model model.Model) error {
 			OnConflict("DO NOTHING").
 			Insert()
 		return err
-	}	
+	}
 	return nil
 }
 
