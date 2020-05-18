@@ -8,6 +8,7 @@ import (
 	"github.com/casbin/casbin/v2/persist"
 	"github.com/go-pg/pg/v9"
 	"github.com/go-pg/pg/v9/orm"
+	"github.com/go-pg/pg/v9/types"
 	"github.com/mmcloughlin/meow"
 )
 
@@ -30,9 +31,12 @@ type Filter struct {
 
 // Adapter represents the github.com/go-pg/pg adapter for policy storage.
 type Adapter struct {
-	db       *pg.DB
-	filtered bool
+	db        *pg.DB
+	tableName string
+	filtered  bool
 }
+
+type Option func(a *Adapter)
 
 // NewAdapter is the constructor for Adapter.
 // arg should be a PostgreS URL string or of type *pg.Options
@@ -54,12 +58,29 @@ func NewAdapter(arg interface{}) (*Adapter, error) {
 
 // NewAdapterByDB creates new Adapter by using existing DB connection
 // creates table from CasbinRule struct if it doesn't exist
-func NewAdapterByDB(db *pg.DB) (*Adapter, error) {
+func NewAdapterByDB(db *pg.DB, opts ...Option) (*Adapter, error) {
 	a := &Adapter{db: db}
+	for _, opt := range opts {
+		opt(a)
+	}
+
+	if len(a.tableName) > 0 {
+		a.db.Model((*CasbinRule)(nil)).TableModel().Table().Name = a.tableName
+		a.db.Model((*CasbinRule)(nil)).TableModel().Table().FullName = (types.Safe)(a.tableName)
+		a.db.Model((*CasbinRule)(nil)).TableModel().Table().FullNameForSelects = (types.Safe)(a.tableName)
+	}
+
 	if err := a.createTableifNotExists(); err != nil {
 		return nil, fmt.Errorf("pgadapter.NewAdapter: %v", err)
 	}
 	return a, nil
+}
+
+// WithTableName can be used to pass custom table name for Casbin rules
+func WithTableName(tableName string) Option {
+	return func(a *Adapter) {
+		a.tableName = tableName
+	}
 }
 
 func createCasbinDatabase(arg interface{}) (*pg.DB, error) {
