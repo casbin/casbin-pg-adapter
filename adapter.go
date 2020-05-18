@@ -8,6 +8,7 @@ import (
 	"github.com/casbin/casbin/v2/persist"
 	"github.com/go-pg/pg/v9"
 	"github.com/go-pg/pg/v9/orm"
+	"github.com/go-pg/pg/v9/types"
 	"github.com/mmcloughlin/meow"
 )
 
@@ -30,9 +31,12 @@ type Filter struct {
 
 // Adapter represents the github.com/go-pg/pg adapter for policy storage.
 type Adapter struct {
-	db       *pg.DB
-	filtered bool
+	db        *pg.DB
+	tableName string
+	filtered  bool
 }
+
+type Option func(a *Adapter)
 
 // NewAdapter is the constructor for Adapter.
 // arg should be a PostgreS URL string or of type *pg.Options
@@ -54,12 +58,29 @@ func NewAdapter(arg interface{}) (*Adapter, error) {
 
 // NewAdapterByDB creates new Adapter by using existing DB connection
 // creates table from CasbinRule struct if it doesn't exist
-func NewAdapterByDB(db *pg.DB) (*Adapter, error) {
+func NewAdapterByDB(db *pg.DB, opts ...Option) (*Adapter, error) {
 	a := &Adapter{db: db}
+	for _, opt := range opts {
+		opt(a)
+	}
+
+	if len(a.tableName) > 0 {
+		a.db.Model((*CasbinRule)(nil)).TableModel().Table().Name = a.tableName
+		a.db.Model((*CasbinRule)(nil)).TableModel().Table().FullName = (types.Safe)(a.tableName)
+		a.db.Model((*CasbinRule)(nil)).TableModel().Table().FullNameForSelects = (types.Safe)(a.tableName)
+	}
+
 	if err := a.createTableifNotExists(); err != nil {
 		return nil, fmt.Errorf("pgadapter.NewAdapter: %v", err)
 	}
 	return a, nil
+}
+
+// WithTableName can be used to pass custom table name for Casbin rules
+func WithTableName(tableName string) Option {
+	return func(a *Adapter) {
+		a.tableName = tableName
+	}
 }
 
 func createCasbinDatabase(arg interface{}) (*pg.DB, error) {
@@ -145,7 +166,7 @@ func (r *CasbinRule) String() string {
 func (a *Adapter) LoadPolicy(model model.Model) error {
 	var lines []*CasbinRule
 
-	if _, err := a.db.Query(&lines, `SELECT * FROM casbin_rules`); err != nil {
+	if err := a.db.Model(&lines).Select(); err != nil {
 		return err
 	}
 
@@ -236,18 +257,18 @@ func (a *Adapter) AddPolicy(sec string, ptype string, rule []string) error {
 // AddPolicies adds policy rules to the storage.
 func (a *Adapter) AddPolicies(sec string, ptype string, rules [][]string) error {
 	var lines []*CasbinRule
-	for _,rule := range rules{
+	for _, rule := range rules {
 		line := savePolicyLine(ptype, rule)
 		lines = append(lines, line)
 	}
-	
+
 	err := a.db.RunInTransaction(func(tx *pg.Tx) error {
 		_, err := tx.Model(&lines).
-		OnConflict("DO NOTHING").
-		Insert()
+			OnConflict("DO NOTHING").
+			Insert()
 		return err
 	})
-	
+
 	return err
 }
 
@@ -261,17 +282,17 @@ func (a *Adapter) RemovePolicy(sec string, ptype string, rule []string) error {
 // RemovePolicies removes policy rules from the storage.
 func (a *Adapter) RemovePolicies(sec string, ptype string, rules [][]string) error {
 	var lines []*CasbinRule
-	for _,rule := range rules{
+	for _, rule := range rules {
 		line := savePolicyLine(ptype, rule)
 		lines = append(lines, line)
 	}
 
 	err := a.db.RunInTransaction(func(tx *pg.Tx) error {
 		_, err := tx.Model(&lines).
-		Delete()
+			Delete()
 		return err
 	})
-	
+
 	return err
 }
 

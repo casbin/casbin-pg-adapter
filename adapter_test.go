@@ -120,17 +120,17 @@ func (s *AdapterTestSuite) TestAutoSave() {
 	// The policy has a new rule: {"alice", "data1", "write"}.
 	s.assertPolicy(
 		[][]string{
-		{"alice", "data1", "read"},
-		{"bob", "data2", "write"},
-		{"data2_admin", "data2", "read"},
-		{"data2_admin", "data2", "write"},
-		{"alice", "data1", "write"},
-		{"bob", "data2", "read"},
-		{"alice", "data2", "write"},
-		{"alice", "data2", "read"},
-		{"bob", "data1", "write"},
-		{"bob", "data1", "read"},
-	},
+			{"alice", "data1", "read"},
+			{"bob", "data2", "write"},
+			{"data2_admin", "data2", "read"},
+			{"data2_admin", "data2", "write"},
+			{"alice", "data1", "write"},
+			{"bob", "data2", "read"},
+			{"alice", "data2", "write"},
+			{"alice", "data2", "read"},
+			{"bob", "data1", "write"},
+			{"bob", "data1", "read"},
+		},
 		s.e.GetPolicy(),
 	)
 
