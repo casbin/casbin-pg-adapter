@@ -145,7 +145,7 @@ func (r *CasbinRule) String() string {
 func (a *Adapter) LoadPolicy(model model.Model) error {
 	var lines []*CasbinRule
 
-	if _, err := a.db.Query(&lines, `SELECT * FROM casbin_rules`); err != nil {
+	if err := a.db.Model(&lines).Select(); err != nil {
 		return err
 	}
 
