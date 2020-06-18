@@ -133,6 +133,12 @@ func (r *CasbinRule) String() string {
 	const prefixLine = ", "
 	var sb strings.Builder
 
+	sb.Grow(
+		len(r.PType) +
+			len(r.V0) + len(r.V1) + len(r.V2) +
+			len(r.V3) + len(r.V4) + len(r.V5),
+	)
+
 	sb.WriteString(r.PType)
 	if len(r.V0) > 0 {
 		sb.WriteString(prefixLine)
