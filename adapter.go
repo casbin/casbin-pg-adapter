@@ -225,7 +225,7 @@ func (a *Adapter) SavePolicy(model model.Model) error {
 	if err != nil {
 		return fmt.Errorf("start DB transaction: %v", err)
 	}
-	defer tx.Rollback()
+	defer tx.Close()
 
 	_, err = tx.Model((*CasbinRule)(nil)).Where("id IS NOT NULL").Delete()
 	if err != nil {
