@@ -76,6 +76,31 @@ func main() {
 }
 ```
 
+## Custom DB Connection
+
+You can provide a custom table or database name with `pgadapter.NewAdapterByDB`
+
+```go
+package main
+
+import (
+	"github.com/casbin/casbin/v2"
+	pgadapter "github.com/casbin/casbin-pg-adapter"
+	"github.com/go-pg/pg/v9"
+)
+
+func main() {
+	opts, _ := pg.ParseURL("postgresql://pguser:pgpassword@localhost:5432/pgdb?sslmode=disable")
+
+	db := pg.Connect(opts)
+	defer db.Close()
+
+	a, _ := pgadapter.NewAdapterByDB(db, pgadapter.WithTableName("custom_table"))
+	e, _ := casbin.NewEnforcer("examples/rbac_model.conf", a)
+    ...
+}
+```
+
 ## Run all tests
 
     docker-compose run --rm go
