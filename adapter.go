@@ -31,9 +31,10 @@ type Filter struct {
 
 // Adapter represents the github.com/go-pg/pg adapter for policy storage.
 type Adapter struct {
-	db        *pg.DB
-	tableName string
-	filtered  bool
+	db              *pg.DB
+	tableName       string
+	skipTableCreate bool
+	filtered        bool
 }
 
 type Option func(a *Adapter)
@@ -70,8 +71,10 @@ func NewAdapterByDB(db *pg.DB, opts ...Option) (*Adapter, error) {
 		a.db.Model((*CasbinRule)(nil)).TableModel().Table().FullNameForSelects = (types.Safe)(a.tableName)
 	}
 
-	if err := a.createTableifNotExists(); err != nil {
-		return nil, fmt.Errorf("pgadapter.NewAdapter: %v", err)
+	if !a.skipTableCreate {
+		if err := a.createTableifNotExists(); err != nil {
+			return nil, fmt.Errorf("pgadapter.NewAdapter: %v", err)
+		}
 	}
 	return a, nil
 }
@@ -80,6 +83,14 @@ func NewAdapterByDB(db *pg.DB, opts ...Option) (*Adapter, error) {
 func WithTableName(tableName string) Option {
 	return func(a *Adapter) {
 		a.tableName = tableName
+	}
+}
+
+// SkipTableCreate skips the table creation step when the adapter starts
+// If the Casbin rules table does not exist, it will lead to issues when using the adapter
+func SkipTableCreate() Option {
+	return func(a *Adapter) {
+		a.skipTableCreate = true
 	}
 }
 
