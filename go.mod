@@ -1,4 +1,4 @@
-module github.com/casbin/casbin-pg-adapter
+module github.com/casbin/go-pg-adapter
 
 go 1.12
 
