@@ -283,6 +283,22 @@ func (s *AdapterTestSuite) TestSavePolicyClearPreviousData() {
 	)
 }
 
+func (s *AdapterTestSuite) TestUpdatePolicy() {
+	var err error
+	s.e, err = casbin.NewEnforcer("examples/rbac_model.conf", "examples/rbac_policy.csv")
+	s.Require().NoError(err)
+
+	s.e.SetAdapter(s.a)
+
+	err = s.e.SavePolicy()
+	s.Require().NoError(err)
+
+	_, err = s.e.UpdatePolicies([][]string{{"alice", "data1", "read"}}, [][]string{{"bob", "data1", "read"}})
+	s.Require().NoError(err)
+
+	s.assertPolicy(s.e.GetPolicy(), [][]string{{"bob", "data1", "read"}, {"bob", "data2", "write"}, {"data2_admin", "data2", "read"}, {"data2_admin", "data2", "write"}})
+}
+
 func TestAdapterTestSuite(t *testing.T) {
 	suite.Run(t, new(AdapterTestSuite))
 }
