@@ -450,3 +450,45 @@ func (a *Adapter) loadFilteredPolicy(model model.Model, filter *Filter, handler 
 func (a *Adapter) IsFiltered() bool {
 	return a.filtered
 }
+
+// UpdatePolicy updates a policy rule from storage.
+// This is part of the Auto-Save feature.
+func (a *Adapter) UpdatePolicy(sec string, ptype string, oldRule, newPolicy []string) error {
+	return a.UpdatePolicies(sec, ptype, [][]string{oldRule}, [][]string{newPolicy})
+}
+
+// UpdatePolicies updates some policy rules to storage, like db, redis.
+func (a *Adapter) UpdatePolicies(sec string, ptype string, oldRules, newRules [][]string) error {
+	oldLines := make([]*CasbinRule, 0, len(oldRules))
+	newLines := make([]*CasbinRule, 0, len(newRules))
+	for _, rule := range oldRules {
+		oldLines = append(oldLines, savePolicyLine(ptype, rule))
+	}
+	for _, rule := range newRules {
+		newLines = append(newLines, savePolicyLine(ptype, rule))
+	}
+
+	return a.updatePolicies(oldLines, newLines)
+}
+
+func (a *Adapter) updatePolicies(oldLines, newLines []*CasbinRule) error {
+	tx, err := a.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Close()
+
+	for i, line := range oldLines {
+		newLines[i].ID = line.ID
+	}
+
+	_, err = tx.Model(&newLines).WherePK().Update()
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err = tx.Commit(); err != nil {
+		return err
+	}
+	return nil
+}
