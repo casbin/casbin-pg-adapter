@@ -293,10 +293,35 @@ func (s *AdapterTestSuite) TestUpdatePolicy() {
 	err = s.e.SavePolicy()
 	s.Require().NoError(err)
 
-	_, err = s.e.UpdatePolicies([][]string{{"alice", "data1", "read"}}, [][]string{{"bob", "data1", "read"}})
+	_, err = s.e.UpdatePolicies([][]string{{"alice", "data1", "read"}, {"bob", "data2", "write"}}, [][]string{{"bob", "data1", "read"}, {"alice", "data2", "write"}})
 	s.Require().NoError(err)
 
-	s.assertPolicy(s.e.GetPolicy(), [][]string{{"bob", "data1", "read"}, {"bob", "data2", "write"}, {"data2_admin", "data2", "read"}, {"data2_admin", "data2", "write"}})
+	err = s.e.LoadPolicy()
+	s.Require().NoError(err)
+
+	s.assertPolicy(s.e.GetPolicy(), [][]string{{"data2_admin", "data2", "read"}, {"data2_admin", "data2", "write"}, {"bob", "data1", "read"}, {"alice", "data2", "write"}})
+}
+
+func (s *AdapterTestSuite) TestUpdatePolicyWithLoadFilteredPolicy() {
+	var err error
+	s.e, err = casbin.NewEnforcer("examples/rbac_model.conf", "examples/rbac_policy.csv")
+	s.Require().NoError(err)
+
+	s.e.SetAdapter(s.a)
+
+	err = s.e.SavePolicy()
+	s.Require().NoError(err)
+
+	err = s.e.LoadFilteredPolicy(&Filter{P: []string{"data2_admin"}})
+	s.Require().NoError(err)
+
+	_, err = s.e.UpdatePolicies(s.e.GetPolicy(), [][]string{{"bob", "data2", "read"}, {"alice", "data2", "write"}})
+	s.Require().NoError(err)
+
+	err = s.e.LoadPolicy()
+	s.Require().NoError(err)
+
+	s.assertPolicy(s.e.GetPolicy(), [][]string{{"alice", "data1", "read"}, {"bob", "data2", "write"}, {"bob", "data2", "read"}, {"alice", "data2", "write"}})
 }
 
 func TestAdapterTestSuite(t *testing.T) {

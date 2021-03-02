@@ -480,13 +480,13 @@ func (a *Adapter) updatePolicies(oldLines, newLines []*CasbinRule) error {
 
 	for i, line := range oldLines {
 		newLines[i].ID = line.ID
+		_, err = tx.Model(newLines[i]).WherePK().Update()
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
 	}
 
-	_, err = tx.Model(&newLines).WherePK().Update()
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
 	if err = tx.Commit(); err != nil {
 		return err
 	}
