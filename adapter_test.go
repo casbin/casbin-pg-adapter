@@ -324,6 +324,25 @@ func (s *AdapterTestSuite) TestUpdatePolicyWithLoadFilteredPolicy() {
 	s.assertPolicy(s.e.GetPolicy(), [][]string{{"alice", "data1", "read"}, {"bob", "data2", "write"}, {"bob", "data2", "read"}, {"alice", "data2", "write"}})
 }
 
+func (s *AdapterTestSuite) TestUpdateFilteredPolicies() {
+
+	var err error
+	s.e, err = casbin.NewEnforcer("examples/rbac_model.conf", "examples/rbac_policy.csv")
+	s.Require().NoError(err)
+
+	s.e.SetAdapter(s.a)
+
+	err = s.e.SavePolicy()
+	s.Require().NoError(err)
+
+	err = s.a.UpdateFilteredPolicies("p", "p", [][]string{{"alice", "data1", "read"}, {"bob", "data2", "write"}}, [][]string{{"alice", "data2", "write"}, {"bob", "data1", "read"}})
+	s.Require().NoError(err)
+
+	err = s.e.LoadPolicy()
+	s.Require().NoError(err)
+
+	s.assertPolicy(s.e.GetPolicy(), [][]string{{"data2_admin", "data2", "read"}, {"data2_admin", "data2", "write"}, {"alice", "data2", "write"}, {"bob", "data1", "read"}})
+}
 func TestAdapterTestSuite(t *testing.T) {
 	suite.Run(t, new(AdapterTestSuite))
 }

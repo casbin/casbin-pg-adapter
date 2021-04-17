@@ -471,6 +471,32 @@ func (a *Adapter) UpdatePolicies(sec string, ptype string, oldRules, newRules []
 	return a.updatePolicies(oldLines, newLines)
 }
 
+func (a *Adapter) UpdateFilteredPolicies(sec string, ptype string, oldRules, newRules [][]string) error {
+	var oldLines []*CasbinRule
+	for _, rule := range oldRules {
+		line := savePolicyLine(ptype, rule)
+		oldLines = append(oldLines, line)
+	}
+
+	var newLines []*CasbinRule
+	for _, rule := range newRules {
+		line := savePolicyLine(ptype, rule)
+		newLines = append(newLines, line)
+	}
+
+	err := a.db.RunInTransaction(func(tx *pg.Tx) error {
+		_, err := tx.Model(&oldLines).Delete()
+		if err != nil {
+			return err
+		}
+		_, err = tx.Model(&newLines).
+			OnConflict("DO NOTHING").
+			Insert()
+		return err
+	})
+	return err
+}
+
 func (a *Adapter) updatePolicies(oldLines, newLines []*CasbinRule) error {
 	tx, err := a.db.Begin()
 	if err != nil {
