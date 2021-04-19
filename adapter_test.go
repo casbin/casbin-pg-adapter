@@ -343,6 +343,7 @@ func (s *AdapterTestSuite) TestUpdateFilteredPolicies() {
 
 	s.assertPolicy(s.e.GetPolicy(), [][]string{{"data2_admin", "data2", "read"}, {"data2_admin", "data2", "write"}, {"alice", "data2", "write"}, {"bob", "data1", "read"}})
 }
+
 func TestAdapterTestSuite(t *testing.T) {
 	suite.Run(t, new(AdapterTestSuite))
 }

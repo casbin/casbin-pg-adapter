@@ -2,13 +2,13 @@ package pgadapter
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/casbin/casbin/v2/model"
 	"github.com/casbin/casbin/v2/persist"
 	"github.com/go-pg/pg/v9"
 	"github.com/go-pg/pg/v9/orm"
-	"github.com/go-pg/pg/v9/types"
 	"github.com/mmcloughlin/meow"
 )
 
@@ -35,6 +35,8 @@ type Adapter struct {
 	tableName       string
 	skipTableCreate bool
 	filtered        bool
+	model           reflect.Type
+	sliceModel      reflect.Type
 }
 
 type Option func(a *Adapter)
@@ -49,6 +51,8 @@ func NewAdapter(arg interface{}) (*Adapter, error) {
 	}
 
 	a := &Adapter{db: db}
+	a.model = reflect.TypeOf(CasbinRule{})
+	a.sliceModel = reflect.SliceOf(reflect.PtrTo(a.model))
 
 	if err := a.createTableifNotExists(); err != nil {
 		return nil, fmt.Errorf("pgadapter.NewAdapter: %v", err)
@@ -65,11 +69,10 @@ func NewAdapterByDB(db *pg.DB, opts ...Option) (*Adapter, error) {
 		opt(a)
 	}
 
-	if len(a.tableName) > 0 {
-		a.db.Model((*CasbinRule)(nil)).TableModel().Table().Name = a.tableName
-		a.db.Model((*CasbinRule)(nil)).TableModel().Table().FullName = (types.Safe)(a.tableName)
-		a.db.Model((*CasbinRule)(nil)).TableModel().Table().FullNameForSelects = (types.Safe)(a.tableName)
+	if a.model == nil {
+		a.model = reflect.TypeOf(CasbinRule{})
 	}
+	a.sliceModel = reflect.SliceOf(reflect.PtrTo(a.model))
 
 	if !a.skipTableCreate {
 		if err := a.createTableifNotExists(); err != nil {
@@ -80,9 +83,9 @@ func NewAdapterByDB(db *pg.DB, opts ...Option) (*Adapter, error) {
 }
 
 // WithTableName can be used to pass custom table name for Casbin rules
-func WithTableName(tableName string) Option {
+func WithTable(model interface{}) Option {
 	return func(a *Adapter) {
-		a.tableName = tableName
+		a.model = reflect.TypeOf(model)
 	}
 }
 
@@ -130,7 +133,8 @@ func (a *Adapter) Close() error {
 }
 
 func (a *Adapter) createTableifNotExists() error {
-	err := a.db.CreateTable(&CasbinRule{}, &orm.CreateTableOptions{
+	m := reflect.New(a.model)
+	err := a.db.CreateTable(m.Interface(), &orm.CreateTableOptions{
 		Temp:        false,
 		IfNotExists: true,
 	})
@@ -181,14 +185,15 @@ func (r *CasbinRule) String() string {
 
 // LoadPolicy loads policy from database.
 func (a *Adapter) LoadPolicy(model model.Model) error {
-	var lines []*CasbinRule
+	lines := reflect.New(a.sliceModel)
 
-	if err := a.db.Model(&lines).Select(); err != nil {
+	if err := a.db.Model(lines.Interface()).Select(); err != nil {
 		return err
 	}
 
-	for _, line := range lines {
-		persist.LoadPolicyLine(line.String(), model)
+	lines = reflect.Indirect(lines)
+	for i := 0; i < lines.Len(); i++ {
+		persist.LoadPolicyLine(lines.Index(i).MethodByName("String").Call(nil)[0].String(), model)
 	}
 
 	a.filtered = false
@@ -202,30 +207,15 @@ func policyID(ptype string, rule []string) string {
 	return fmt.Sprintf("%x", sum)
 }
 
-func savePolicyLine(ptype string, rule []string) *CasbinRule {
-	line := &CasbinRule{PType: ptype}
+func (a *Adapter) savePolicyLine(ptype string, rule []string) reflect.Value {
+	line := reflect.New(a.model)
 
-	l := len(rule)
-	if l > 0 {
-		line.V0 = rule[0]
-	}
-	if l > 1 {
-		line.V1 = rule[1]
-	}
-	if l > 2 {
-		line.V2 = rule[2]
-	}
-	if l > 3 {
-		line.V3 = rule[3]
-	}
-	if l > 4 {
-		line.V4 = rule[4]
-	}
-	if l > 5 {
-		line.V5 = rule[5]
+	line.Elem().Field(1).SetString(ptype)
+	for i := range rule {
+		line.Elem().Field(i + 2).SetString(rule[i])
 	}
 
-	line.ID = policyID(ptype, rule)
+	line.Elem().Field(0).SetString(policyID(ptype, rule))
 
 	return line
 }
@@ -238,29 +228,30 @@ func (a *Adapter) SavePolicy(model model.Model) error {
 	}
 	defer tx.Close()
 
-	_, err = tx.Model((*CasbinRule)(nil)).Where("id IS NOT NULL").Delete()
+	_, err = tx.Model(reflect.New(a.model).Interface()).Where("id IS NOT NULL").Delete()
 	if err != nil {
 		return err
 	}
 
-	var lines []*CasbinRule
+	linesPtr := reflect.New(a.sliceModel)
+	lines := reflect.Indirect(linesPtr)
 
 	for ptype, ast := range model["p"] {
 		for _, rule := range ast.Policy {
-			line := savePolicyLine(ptype, rule)
-			lines = append(lines, line)
+			line := a.savePolicyLine(ptype, rule)
+			lines.Set(reflect.Append(lines, line))
 		}
 	}
 
 	for ptype, ast := range model["g"] {
 		for _, rule := range ast.Policy {
-			line := savePolicyLine(ptype, rule)
-			lines = append(lines, line)
+			line := a.savePolicyLine(ptype, rule)
+			lines.Set(reflect.Append(lines, line))
 		}
 	}
 
-	if len(lines) > 0 {
-		_, err = tx.Model(&lines).
+	if linesPtr.Elem().Len() > 0 {
+		_, err = tx.Model(linesPtr.Interface()).
 			OnConflict("DO NOTHING").
 			Insert()
 		if err != nil {
@@ -278,9 +269,9 @@ func (a *Adapter) SavePolicy(model model.Model) error {
 
 // AddPolicy adds a policy rule to the storage.
 func (a *Adapter) AddPolicy(sec string, ptype string, rule []string) error {
-	line := savePolicyLine(ptype, rule)
+	line := a.savePolicyLine(ptype, rule)
 	err := a.db.RunInTransaction(func(tx *pg.Tx) error {
-		_, err := a.db.Model(line).
+		_, err := a.db.Model(line.Interface()).
 			OnConflict("DO NOTHING").
 			Insert()
 
@@ -292,14 +283,15 @@ func (a *Adapter) AddPolicy(sec string, ptype string, rule []string) error {
 
 // AddPolicies adds policy rules to the storage.
 func (a *Adapter) AddPolicies(sec string, ptype string, rules [][]string) error {
-	var lines []*CasbinRule
+	linesPtr := reflect.New(a.sliceModel)
+	lines := reflect.Indirect(linesPtr)
 	for _, rule := range rules {
-		line := savePolicyLine(ptype, rule)
-		lines = append(lines, line)
+		line := a.savePolicyLine(ptype, rule)
+		lines.Set(reflect.Append(lines, line))
 	}
 
 	err := a.db.RunInTransaction(func(tx *pg.Tx) error {
-		_, err := tx.Model(&lines).
+		_, err := tx.Model(linesPtr.Interface()).
 			OnConflict("DO NOTHING").
 			Insert()
 		return err
@@ -310,9 +302,9 @@ func (a *Adapter) AddPolicies(sec string, ptype string, rules [][]string) error 
 
 // RemovePolicy removes a policy rule from the storage.
 func (a *Adapter) RemovePolicy(sec string, ptype string, rule []string) error {
-	line := savePolicyLine(ptype, rule)
+	line := a.savePolicyLine(ptype, rule)
 	err := a.db.RunInTransaction(func(tx *pg.Tx) error {
-		return a.db.Delete(line)
+		return a.db.Delete(line.Interface())
 	})
 
 	return err
@@ -320,14 +312,15 @@ func (a *Adapter) RemovePolicy(sec string, ptype string, rule []string) error {
 
 // RemovePolicies removes policy rules from the storage.
 func (a *Adapter) RemovePolicies(sec string, ptype string, rules [][]string) error {
-	var lines []*CasbinRule
+	linesPtr := reflect.New(a.sliceModel)
+	lines := reflect.Indirect(linesPtr)
 	for _, rule := range rules {
-		line := savePolicyLine(ptype, rule)
-		lines = append(lines, line)
+		line := a.savePolicyLine(ptype, rule)
+		lines.Set(reflect.Append(lines, line))
 	}
 
 	err := a.db.RunInTransaction(func(tx *pg.Tx) error {
-		_, err := tx.Model(&lines).
+		_, err := tx.Model(linesPtr.Interface()).
 			Delete()
 		return err
 	})
@@ -337,7 +330,7 @@ func (a *Adapter) RemovePolicies(sec string, ptype string, rules [][]string) err
 
 // RemoveFilteredPolicy removes policy rules that match the filter from the storage.
 func (a *Adapter) RemoveFilteredPolicy(sec string, ptype string, fieldIndex int, fieldValues ...string) error {
-	query := a.db.Model((*CasbinRule)(nil)).Where("p_type = ?", ptype)
+	query := a.db.Model(reflect.New(a.model).Interface()).Where("p_type = ?", ptype)
 
 	idx := fieldIndex + len(fieldValues)
 	if fieldIndex <= 0 && idx > 0 && fieldValues[0-fieldIndex] != "" {
@@ -411,9 +404,10 @@ func buildQuery(query *orm.Query, values []string) (*orm.Query, error) {
 
 func (a *Adapter) loadFilteredPolicy(model model.Model, filter *Filter, handler func(string, model.Model)) error {
 	if filter.P != nil {
-		lines := []*CasbinRule{}
+		linesPtr := reflect.New(a.sliceModel)
+		lines := reflect.Indirect(linesPtr)
 
-		query := a.db.Model(&lines).Where("p_type = 'p'")
+		query := a.db.Model(linesPtr.Interface()).Where("p_type = 'p'")
 		query, err := buildQuery(query, filter.P)
 		if err != nil {
 			return err
@@ -423,14 +417,15 @@ func (a *Adapter) loadFilteredPolicy(model model.Model, filter *Filter, handler 
 			return err
 		}
 
-		for _, line := range lines {
-			handler(line.String(), model)
+		for i := 0; i < lines.Len(); i++ {
+			handler(lines.Index(i).MethodByName("String").Call(nil)[0].String(), model)
 		}
 	}
 	if filter.G != nil {
-		lines := []*CasbinRule{}
+		linesPtr := reflect.New(a.sliceModel)
+		lines := reflect.Indirect(linesPtr)
 
-		query := a.db.Model(&lines).Where("p_type = 'g'")
+		query := a.db.Model(linesPtr.Interface()).Where("p_type = 'g'")
 		query, err := buildQuery(query, filter.G)
 		if err != nil {
 			return err
@@ -440,8 +435,8 @@ func (a *Adapter) loadFilteredPolicy(model model.Model, filter *Filter, handler 
 			return err
 		}
 
-		for _, line := range lines {
-			handler(line.String(), model)
+		for i := 0; i < lines.Len(); i++ {
+			handler(lines.Index(i).MethodByName("String").Call(nil)[0].String(), model)
 		}
 	}
 	return nil
@@ -459,62 +454,58 @@ func (a *Adapter) UpdatePolicy(sec string, ptype string, oldRule, newPolicy []st
 
 // UpdatePolicies updates some policy rules to storage, like db, redis.
 func (a *Adapter) UpdatePolicies(sec string, ptype string, oldRules, newRules [][]string) error {
-	oldLines := make([]*CasbinRule, 0, len(oldRules))
-	newLines := make([]*CasbinRule, 0, len(newRules))
+	oldLinesPtr := reflect.New(a.sliceModel)
+	oldLines := reflect.Indirect(oldLinesPtr)
+	newLinesPtr := reflect.New(a.sliceModel)
+	newLines := reflect.Indirect(newLinesPtr)
 	for _, rule := range oldRules {
-		oldLines = append(oldLines, savePolicyLine(ptype, rule))
+		oldLines.Set(reflect.Append(oldLines, a.savePolicyLine(ptype, rule)))
 	}
 	for _, rule := range newRules {
-		newLines = append(newLines, savePolicyLine(ptype, rule))
+		newLines.Set(reflect.Append(newLines, a.savePolicyLine(ptype, rule)))
 	}
 
-	return a.updatePolicies(oldLines, newLines)
-}
-
-func (a *Adapter) UpdateFilteredPolicies(sec string, ptype string, oldRules, newRules [][]string) error {
-	var oldLines []*CasbinRule
-	for _, rule := range oldRules {
-		line := savePolicyLine(ptype, rule)
-		oldLines = append(oldLines, line)
-	}
-
-	var newLines []*CasbinRule
-	for _, rule := range newRules {
-		line := savePolicyLine(ptype, rule)
-		newLines = append(newLines, line)
-	}
-
-	err := a.db.RunInTransaction(func(tx *pg.Tx) error {
-		_, err := tx.Model(&oldLines).Delete()
-		if err != nil {
-			return err
-		}
-		_, err = tx.Model(&newLines).
-			OnConflict("DO NOTHING").
-			Insert()
-		return err
-	})
-	return err
-}
-
-func (a *Adapter) updatePolicies(oldLines, newLines []*CasbinRule) error {
 	tx, err := a.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Close()
-
-	for i, line := range oldLines {
-		newLines[i].ID = line.ID
-		_, err = tx.Model(newLines[i]).WherePK().Update()
+	for i := 0; i < oldLines.Len(); i++ {
+		newLines.Index(i).Elem().FieldByName("ID").SetString(oldLines.Index(i).Elem().FieldByName("ID").String())
+		_, err = tx.Model(newLines.Index(i).Interface()).WherePK().Update()
 		if err != nil {
 			tx.Rollback()
 			return err
 		}
 	}
 
-	if err = tx.Commit(); err != nil {
-		return err
+	return tx.Commit()
+}
+
+func (a *Adapter) UpdateFilteredPolicies(sec string, ptype string, oldRules, newRules [][]string) error {
+	oldLinesPtr := reflect.New(a.sliceModel)
+	oldLines := reflect.Indirect(oldLinesPtr)
+	for _, rule := range oldRules {
+		line := a.savePolicyLine(ptype, rule)
+		oldLines.Set(reflect.Append(oldLines, line))
 	}
-	return nil
+
+	newLinesPtr := reflect.New(a.sliceModel)
+	newLines := reflect.Indirect(newLinesPtr)
+	for _, rule := range newRules {
+		line := a.savePolicyLine(ptype, rule)
+		newLines.Set(reflect.Append(newLines, line))
+	}
+
+	err := a.db.RunInTransaction(func(tx *pg.Tx) error {
+		_, err := tx.Model(oldLinesPtr.Interface()).Delete()
+		if err != nil {
+			return err
+		}
+		_, err = tx.Model(newLinesPtr.Interface()).
+			OnConflict("DO NOTHING").
+			Insert()
+		return err
+	})
+	return err
 }
