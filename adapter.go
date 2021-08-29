@@ -471,30 +471,119 @@ func (a *Adapter) UpdatePolicies(sec string, ptype string, oldRules, newRules []
 	return a.updatePolicies(oldLines, newLines)
 }
 
-func (a *Adapter) UpdateFilteredPolicies(sec string, ptype string, oldRules, newRules [][]string) error {
-	var oldLines []*CasbinRule
-	for _, rule := range oldRules {
-		line := savePolicyLine(ptype, rule)
-		oldLines = append(oldLines, line)
+func (a *Adapter) UpdateFilteredPolicies(sec string, ptype string, newPolicies [][]string, fieldIndex int, fieldValues ...string) ([][]string, error) {
+	line := &CasbinRule{}
+
+	line.PType = ptype
+	if fieldIndex <= 0 && 0 < fieldIndex+len(fieldValues) {
+		line.V0 = fieldValues[0-fieldIndex]
+	}
+	if fieldIndex <= 1 && 1 < fieldIndex+len(fieldValues) {
+		line.V1 = fieldValues[1-fieldIndex]
+	}
+	if fieldIndex <= 2 && 2 < fieldIndex+len(fieldValues) {
+		line.V2 = fieldValues[2-fieldIndex]
+	}
+	if fieldIndex <= 3 && 3 < fieldIndex+len(fieldValues) {
+		line.V3 = fieldValues[3-fieldIndex]
+	}
+	if fieldIndex <= 4 && 4 < fieldIndex+len(fieldValues) {
+		line.V4 = fieldValues[4-fieldIndex]
+	}
+	if fieldIndex <= 5 && 5 < fieldIndex+len(fieldValues) {
+		line.V5 = fieldValues[5-fieldIndex]
 	}
 
-	var newLines []*CasbinRule
-	for _, rule := range newRules {
-		line := savePolicyLine(ptype, rule)
-		newLines = append(newLines, line)
+	newP := make([]CasbinRule, 0, len(newPolicies))
+	oldP := make([]CasbinRule, 0)
+	for _, newRule := range newPolicies {
+		newP = append(newP, *(savePolicyLine(ptype, newRule)))
 	}
 
 	err := a.db.RunInTransaction(context.Background(), func(tx *pg.Tx) error {
-		_, err := tx.Model(&oldLines).Table(a.tableName).Delete()
-		if err != nil {
-			return err
+		for i := range newP {
+			str, args := line.queryString()
+			_, err := tx.Model(&oldP).Table(a.tableName).Where(str, args...).Delete()
+			if err != nil {
+				tx.Rollback()
+				return err
+			}
+			_, err = tx.Model(&newP[i]).Table(a.tableName).
+				OnConflict("DO NOTHING").
+				Insert()
+			if err != nil {
+				tx.Rollback()
+				return err
+			}
 		}
-		_, err = tx.Model(&newLines).Table(a.tableName).
-			OnConflict("DO NOTHING").
-			Insert()
-		return err
+		return nil
 	})
-	return err
+
+	// return deleted rulues
+	oldPolicies := make([][]string, 0)
+	for _, v := range oldP {
+		oldPolicy := v.toStringPolicy()
+		oldPolicies = append(oldPolicies, oldPolicy)
+	}
+	return oldPolicies, err
+}
+
+func (c *CasbinRule) queryString() (string, []interface{}) {
+	queryArgs := []interface{}{c.PType}
+
+	queryStr := "p_type = ?"
+	if c.V0 != "" {
+		queryStr += " and v0 = ?"
+		queryArgs = append(queryArgs, c.V0)
+	}
+	if c.V1 != "" {
+		queryStr += " and v1 = ?"
+		queryArgs = append(queryArgs, c.V1)
+	}
+	if c.V2 != "" {
+		queryStr += " and v2 = ?"
+		queryArgs = append(queryArgs, c.V2)
+	}
+	if c.V3 != "" {
+		queryStr += " and v3 = ?"
+		queryArgs = append(queryArgs, c.V3)
+	}
+	if c.V4 != "" {
+		queryStr += " and v4 = ?"
+		queryArgs = append(queryArgs, c.V4)
+	}
+	if c.V5 != "" {
+		queryStr += " and v5 = ?"
+		queryArgs = append(queryArgs, c.V5)
+	}
+
+	return queryStr, queryArgs
+}
+
+func (c *CasbinRule) toStringPolicy() []string {
+	policy := make([]string, 0)
+	if c.PType != "" {
+		policy = append(policy, c.PType)
+	}
+	if c.V0 != "" {
+		policy = append(policy, c.V0)
+	}
+	if c.V1 != "" {
+		policy = append(policy, c.V1)
+	}
+	if c.V2 != "" {
+		policy = append(policy, c.V2)
+	}
+	if c.V3 != "" {
+		policy = append(policy, c.V3)
+	}
+	if c.V4 != "" {
+		policy = append(policy, c.V4)
+	}
+	if c.V5 != "" {
+		policy = append(policy, c.V5)
+	}
+	return policy
 }
 
 func (a *Adapter) updatePolicies(oldLines, newLines []*CasbinRule) error {
@@ -505,8 +594,8 @@ func (a *Adapter) updatePolicies(oldLines, newLines []*CasbinRule) error {
 	defer tx.Close()
 
 	for i, line := range oldLines {
-		newLines[i].ID = line.ID
-		_, err = tx.Model(newLines[i]).Table(a.tableName).WherePK().Update()
+		str, args := line.queryString()
+		_, err = tx.Model(newLines[i]).Table(a.tableName).Where(str, args...).Update()
 		if err != nil {
 			tx.Rollback()
 			return err

@@ -335,7 +335,9 @@ func (s *AdapterTestSuite) TestUpdateFilteredPolicies() {
 	err = s.e.SavePolicy()
 	s.Require().NoError(err)
 
-	err = s.a.UpdateFilteredPolicies("p", "p", [][]string{{"alice", "data1", "read"}, {"bob", "data2", "write"}}, [][]string{{"alice", "data2", "write"}, {"bob", "data1", "read"}})
+	_, err = s.a.UpdateFilteredPolicies("p", "p", [][]string{{"alice", "data2", "write"}}, 0, "alice", "data1", "read")
+	s.Require().NoError(err)
+	_, err = s.a.UpdateFilteredPolicies("p", "p", [][]string{{"bob", "data1", "read"}}, 0, "bob", "data2", "write")
 	s.Require().NoError(err)
 
 	err = s.e.LoadPolicy()
