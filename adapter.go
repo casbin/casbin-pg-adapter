@@ -18,7 +18,7 @@ const DefaultTableName = "casbin_rule"
 type CasbinRule struct {
 	tableName struct{} `pg:"_"`
 	ID        string
-	PType     string
+	Ptype     string
 	V0        string
 	V1        string
 	V2        string
@@ -142,12 +142,12 @@ func (r *CasbinRule) String() string {
 	var sb strings.Builder
 
 	sb.Grow(
-		len(r.PType) +
+		len(r.Ptype) +
 			len(r.V0) + len(r.V1) + len(r.V2) +
 			len(r.V3) + len(r.V4) + len(r.V5),
 	)
 
-	sb.WriteString(r.PType)
+	sb.WriteString(r.Ptype)
 	if len(r.V0) > 0 {
 		sb.WriteString(prefixLine)
 		sb.WriteString(r.V0)
@@ -200,7 +200,7 @@ func policyID(ptype string, rule []string) string {
 }
 
 func savePolicyLine(ptype string, rule []string) *CasbinRule {
-	line := &CasbinRule{PType: ptype}
+	line := &CasbinRule{Ptype: ptype}
 
 	l := len(rule)
 	if l > 0 {
@@ -337,7 +337,7 @@ func (a *Adapter) RemovePolicies(sec string, ptype string, rules [][]string) err
 
 // RemoveFilteredPolicy removes policy rules that match the filter from the storage.
 func (a *Adapter) RemoveFilteredPolicy(sec string, ptype string, fieldIndex int, fieldValues ...string) error {
-	query := a.db.Model((*CasbinRule)(nil)).Table(a.tableName).Where("p_type = ?", ptype)
+	query := a.db.Model((*CasbinRule)(nil)).Table(a.tableName).Where("ptype = ?", ptype)
 
 	idx := fieldIndex + len(fieldValues)
 	if fieldIndex <= 0 && idx > 0 && fieldValues[0-fieldIndex] != "" {
@@ -413,7 +413,7 @@ func (a *Adapter) loadFilteredPolicy(model model.Model, filter *Filter, handler 
 	if filter.P != nil {
 		lines := []*CasbinRule{}
 
-		query := a.db.Model(&lines).Table(a.tableName).Where("p_type = 'p'")
+		query := a.db.Model(&lines).Table(a.tableName).Where("ptype = 'p'")
 		query, err := buildQuery(query, filter.P)
 		if err != nil {
 			return err
@@ -430,7 +430,7 @@ func (a *Adapter) loadFilteredPolicy(model model.Model, filter *Filter, handler 
 	if filter.G != nil {
 		lines := []*CasbinRule{}
 
-		query := a.db.Model(&lines).Table(a.tableName).Where("p_type = 'g'")
+		query := a.db.Model(&lines).Table(a.tableName).Where("ptype = 'g'")
 		query, err := buildQuery(query, filter.G)
 		if err != nil {
 			return err
@@ -474,7 +474,7 @@ func (a *Adapter) UpdatePolicies(sec string, ptype string, oldRules, newRules []
 func (a *Adapter) UpdateFilteredPolicies(sec string, ptype string, newPolicies [][]string, fieldIndex int, fieldValues ...string) ([][]string, error) {
 	line := &CasbinRule{}
 
-	line.PType = ptype
+	line.Ptype = ptype
 	if fieldIndex <= 0 && 0 < fieldIndex+len(fieldValues) {
 		line.V0 = fieldValues[0-fieldIndex]
 	}
@@ -529,9 +529,9 @@ func (a *Adapter) UpdateFilteredPolicies(sec string, ptype string, newPolicies [
 }
 
 func (c *CasbinRule) queryString() (string, []interface{}) {
-	queryArgs := []interface{}{c.PType}
+	queryArgs := []interface{}{c.Ptype}
 
-	queryStr := "p_type = ?"
+	queryStr := "ptype = ?"
 	if c.V0 != "" {
 		queryStr += " and v0 = ?"
 		queryArgs = append(queryArgs, c.V0)
@@ -562,8 +562,8 @@ func (c *CasbinRule) queryString() (string, []interface{}) {
 
 func (c *CasbinRule) toStringPolicy() []string {
 	policy := make([]string, 0)
-	if c.PType != "" {
-		policy = append(policy, c.PType)
+	if c.Ptype != "" {
+		policy = append(policy, c.Ptype)
 	}
 	if c.V0 != "" {
 		policy = append(policy, c.V0)
