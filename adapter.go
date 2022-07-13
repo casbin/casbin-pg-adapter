@@ -121,7 +121,7 @@ func createCasbinDatabase(arg interface{}, dbname string) (*pg.DB, error) {
 	defer db.Close()
 
 	_, err = db.Exec(fmt.Sprintf("CREATE DATABASE %s", dbname))
-	if err != nil && !strings.Contains(fmt.Sprintf("%s", err), "42P04") {
+	if err != nil && !strings.Contains(err.Error(), "42P04") {
 		return nil, err
 	}
 	db.Close()
