@@ -199,7 +199,10 @@ func (a *Adapter) LoadPolicy(model model.Model) error {
 	}
 
 	for _, line := range lines {
-		persist.LoadPolicyLine(line.String(), model)
+		err := persist.LoadPolicyLine(line.String(), model)
+		if err != nil {
+			return err
+		}
 	}
 
 	a.filtered = false
@@ -423,7 +426,7 @@ func buildQuery(query *orm.Query, values []string) (*orm.Query, error) {
 	return query, nil
 }
 
-func (a *Adapter) loadFilteredPolicy(model model.Model, filter *Filter, handler func(string, model.Model)) error {
+func (a *Adapter) loadFilteredPolicy(model model.Model, filter *Filter, handler func(string, model.Model) error) error {
 	if filter.P != nil {
 		lines := []*CasbinRule{}
 
