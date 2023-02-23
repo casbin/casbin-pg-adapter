@@ -31,10 +31,12 @@ func main() {
 	//     Password: "...",
 	// })
 
-	// Or you can use an existing DB "abc" like this:
 	// The adapter will use the table named "casbin_rule".
 	// If it doesn't exist, the adapter will create it automatically.
 
+	// Or you can use an existing DB by adding a second string parameter with your database name to the NewAdapter(), like this:
+	// a, _ := pgadapter.NewAdapter("postgresql://username:password@postgres:5432/database?sslmode=disable", "your_database_name") 
+	
 	e := casbin.NewEnforcer("examples/rbac_model.conf", a)
 
 	// Load the policy from DB.
