@@ -56,7 +56,7 @@ func main() {
 
 ## Support for FilteredAdapter interface
 
-You can [load a subset of policies](https://casbin.org/docs/en/policy-subset-loading) with this adapter:
+You can [load a subset of policies](https://casbin.org/docs/policy-subset-loading) with this adapter:
 
 ```go
 package main
