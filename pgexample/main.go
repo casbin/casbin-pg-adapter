@@ -26,7 +26,7 @@ func main() {
 	// Load the policy from DB.
 	e.LoadPolicy()
 
-	// Alternatively load a subset of policy as demonstrated at https://casbin.org/docs/en/policy-subset-loading
+	// Alternatively load a subset of policy as demonstrated at https://casbin.org/docs/policy-subset-loading/
 	// e.LoadFilteredPolicy(&pgadapter.Filter{
 	// 	P: []string{"", "data1"},
 	// 	G: []string{"alice"},
