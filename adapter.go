@@ -20,12 +20,12 @@ type CasbinRule struct {
 	tableName struct{} `pg:"_"`
 	ID        string
 	Ptype     string
-	V0        string
-	V1        string
-	V2        string
-	V3        string
-	V4        string
-	V5        string
+	V0        string `pg:",use_zero"`
+	V1        string `pg:",use_zero"`
+	V2        string `pg:",use_zero"`
+	V3        string `pg:",use_zero"`
+	V4        string `pg:",use_zero"`
+	V5        string `pg:",use_zero"`
 }
 
 type Filter struct {
@@ -151,6 +151,22 @@ func (a *Adapter) createTableifNotExists() error {
 	return nil
 }
 
+// getValues returns the V0-V5 values as a slice
+func (r *CasbinRule) getValues() []string {
+	return []string{r.V0, r.V1, r.V2, r.V3, r.V4, r.V5}
+}
+
+// getLastNonEmptyIndex returns the index of the last non-empty value in the given slice
+// Returns -1 if all values are empty
+func getLastNonEmptyIndex(values []string) int {
+	for i := len(values) - 1; i >= 0; i-- {
+		if values[i] != "" {
+			return i
+		}
+	}
+	return -1
+}
+
 func (r *CasbinRule) String() string {
 	const prefixLine = ", "
 	var sb strings.Builder
@@ -162,29 +178,15 @@ func (r *CasbinRule) String() string {
 	)
 
 	sb.WriteString(r.Ptype)
-	if len(r.V0) > 0 {
+	
+	values := r.getValues()
+	lastIndex := getLastNonEmptyIndex(values)
+	
+	// Include all values up to and including the last non-empty one
+	// This preserves empty strings in the middle while trimming trailing empty strings
+	for i := 0; i <= lastIndex; i++ {
 		sb.WriteString(prefixLine)
-		sb.WriteString(r.V0)
-	}
-	if len(r.V1) > 0 {
-		sb.WriteString(prefixLine)
-		sb.WriteString(r.V1)
-	}
-	if len(r.V2) > 0 {
-		sb.WriteString(prefixLine)
-		sb.WriteString(r.V2)
-	}
-	if len(r.V3) > 0 {
-		sb.WriteString(prefixLine)
-		sb.WriteString(r.V3)
-	}
-	if len(r.V4) > 0 {
-		sb.WriteString(prefixLine)
-		sb.WriteString(r.V4)
-	}
-	if len(r.V5) > 0 {
-		sb.WriteString(prefixLine)
-		sb.WriteString(r.V5)
+		sb.WriteString(values[i])
 	}
 
 	return sb.String()
@@ -547,31 +549,17 @@ func (a *Adapter) UpdateFilteredPolicies(sec string, ptype string, newPolicies [
 
 func (c *CasbinRule) queryString() (string, []interface{}) {
 	queryArgs := []interface{}{c.Ptype}
-
 	queryStr := "ptype = ?"
-	if c.V0 != "" {
-		queryStr += " and v0 = ?"
-		queryArgs = append(queryArgs, c.V0)
-	}
-	if c.V1 != "" {
-		queryStr += " and v1 = ?"
-		queryArgs = append(queryArgs, c.V1)
-	}
-	if c.V2 != "" {
-		queryStr += " and v2 = ?"
-		queryArgs = append(queryArgs, c.V2)
-	}
-	if c.V3 != "" {
-		queryStr += " and v3 = ?"
-		queryArgs = append(queryArgs, c.V3)
-	}
-	if c.V4 != "" {
-		queryStr += " and v4 = ?"
-		queryArgs = append(queryArgs, c.V4)
-	}
-	if c.V5 != "" {
-		queryStr += " and v5 = ?"
-		queryArgs = append(queryArgs, c.V5)
+
+	values := c.getValues()
+	lastIndex := getLastNonEmptyIndex(values)
+	
+	// Include all fields up to and including the last non-empty one
+	// This ensures empty strings in the middle are matched explicitly
+	fields := []string{"v0", "v1", "v2", "v3", "v4", "v5"}
+	for i := 0; i <= lastIndex; i++ {
+		queryStr += " and " + fields[i] + " = ?"
+		queryArgs = append(queryArgs, values[i])
 	}
 
 	return queryStr, queryArgs
@@ -582,24 +570,16 @@ func (c *CasbinRule) toStringPolicy() []string {
 	if c.Ptype != "" {
 		policy = append(policy, c.Ptype)
 	}
-	if c.V0 != "" {
-		policy = append(policy, c.V0)
+	
+	values := c.getValues()
+	lastIndex := getLastNonEmptyIndex(values)
+	
+	// Include all values up to and including the last non-empty one
+	// This preserves empty strings in the middle while trimming trailing empty strings
+	for i := 0; i <= lastIndex; i++ {
+		policy = append(policy, values[i])
 	}
-	if c.V1 != "" {
-		policy = append(policy, c.V1)
-	}
-	if c.V2 != "" {
-		policy = append(policy, c.V2)
-	}
-	if c.V3 != "" {
-		policy = append(policy, c.V3)
-	}
-	if c.V4 != "" {
-		policy = append(policy, c.V4)
-	}
-	if c.V5 != "" {
-		policy = append(policy, c.V5)
-	}
+	
 	return policy
 }
 

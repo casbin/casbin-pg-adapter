@@ -345,6 +345,132 @@ func (s *AdapterTestSuite) TestUpdateFilteredPolicies() {
 
 	s.assertPolicy(s.e.GetPolicy(), [][]string{{"data2_admin", "data2", "read"}, {"data2_admin", "data2", "write"}, {"alice", "data2", "write"}, {"bob", "data1", "read"}})
 }
+
+func (s *AdapterTestSuite) TestEmptyStringSupport() {
+	// Test that empty strings in the middle of rules are properly stored and retrieved
+	// Note: Casbin trims trailing empty strings, so we focus on empty strings in the middle
+	var err error
+	
+	// Add policies with empty strings in the middle
+	_, err = s.e.AddPolicy("alice", "", "read")
+	s.Require().NoError(err)
+	
+	_, err = s.e.AddPolicy("bob", "", "write")
+	s.Require().NoError(err)
+	
+	// Reload to ensure they were saved correctly
+	err = s.e.LoadPolicy()
+	s.Require().NoError(err)
+	
+	// Check that all policies including empty strings are present
+	policies := s.e.GetPolicy()
+	
+	// Should have original 4 policies plus 2 new ones with empty strings
+	s.Assert().Len(policies, 6)
+	
+	// Verify the new policies with empty strings exist
+	hasAliceEmpty := false
+	hasBobEmpty := false
+	
+	for _, p := range policies {
+		if len(p) == 3 && p[0] == "alice" && p[1] == "" && p[2] == "read" {
+			hasAliceEmpty = true
+		}
+		if len(p) == 3 && p[0] == "bob" && p[1] == "" && p[2] == "write" {
+			hasBobEmpty = true
+		}
+	}
+	
+	s.Assert().True(hasAliceEmpty, "Policy with alice and empty string in middle not found")
+	s.Assert().True(hasBobEmpty, "Policy with bob and empty string in middle not found")
+	
+	// Test removing a policy with empty string
+	_, err = s.e.RemovePolicy("alice", "", "read")
+	s.Require().NoError(err)
+	
+	err = s.e.LoadPolicy()
+	s.Require().NoError(err)
+	
+	policies = s.e.GetPolicy()
+	s.Assert().Len(policies, 5)
+	
+	// Verify alice policy with empty string was removed
+	for _, p := range policies {
+		if len(p) == 3 && p[0] == "alice" && p[1] == "" && p[2] == "read" {
+			s.Fail("Policy with alice and empty string should have been removed")
+		}
+	}
+	
+	// Test updating a policy with empty string
+	_, err = s.e.UpdatePolicy([]string{"bob", "", "write"}, []string{"bob", "", "read"})
+	s.Require().NoError(err)
+	
+	err = s.e.LoadPolicy()
+	s.Require().NoError(err)
+	
+	policies = s.e.GetPolicy()
+	hasBobEmptyRead := false
+	for _, p := range policies {
+		if len(p) == 3 && p[0] == "bob" && p[1] == "" && p[2] == "read" {
+			hasBobEmptyRead = true
+		}
+		// Should not have the old policy anymore
+		if len(p) == 3 && p[0] == "bob" && p[1] == "" && p[2] == "write" {
+			s.Fail("Old policy with bob and write should have been updated")
+		}
+	}
+	s.Assert().True(hasBobEmptyRead, "Updated policy with bob and read not found")
+}
+
+func (s *AdapterTestSuite) TestEmptyStringVsWildcard() {
+	// Test that empty strings in rules are different from wildcards in filters
+	var err error
+	
+	// Add a policy with an empty string
+	_, err = s.e.AddPolicy("user1", "", "write")
+	s.Require().NoError(err)
+	
+	// Add a policy with a non-empty value
+	_, err = s.e.AddPolicy("user1", "resource1", "write")
+	s.Require().NoError(err)
+	
+	// Reload
+	err = s.e.LoadPolicy()
+	s.Require().NoError(err)
+	
+	// Both should exist
+	policies := s.e.GetPolicy()
+	hasEmpty := false
+	hasNonEmpty := false
+	
+	for _, p := range policies {
+		if len(p) >= 3 && p[0] == "user1" && p[2] == "write" {
+			if p[1] == "" {
+				hasEmpty = true
+			} else if p[1] == "resource1" {
+				hasNonEmpty = true
+			}
+		}
+	}
+	
+	s.Assert().True(hasEmpty, "Policy with empty string should exist")
+	s.Assert().True(hasNonEmpty, "Policy with resource1 should exist")
+	
+	// Remove using wildcard (empty string in filter) should remove both
+	_, err = s.e.RemoveFilteredPolicy(0, "user1", "", "write")
+	s.Require().NoError(err)
+	
+	err = s.e.LoadPolicy()
+	s.Require().NoError(err)
+	
+	policies = s.e.GetPolicy()
+	for _, p := range policies {
+		if len(p) >= 3 && p[0] == "user1" && p[2] == "write" {
+			s.Fail("Policies with user1 and write should have been removed by wildcard filter")
+		}
+	}
+}
+
 func TestAdapterTestSuite(t *testing.T) {
 	suite.Run(t, new(AdapterTestSuite))
 }
