@@ -151,6 +151,23 @@ func (a *Adapter) createTableifNotExists() error {
 	return nil
 }
 
+// getValues returns the V0-V5 values as a slice
+func (r *CasbinRule) getValues() []string {
+	return []string{r.V0, r.V1, r.V2, r.V3, r.V4, r.V5}
+}
+
+// getLastNonEmptyIndex returns the index of the last non-empty value in the rule
+// Returns -1 if all values are empty
+func (r *CasbinRule) getLastNonEmptyIndex() int {
+	values := r.getValues()
+	for i := len(values) - 1; i >= 0; i-- {
+		if values[i] != "" {
+			return i
+		}
+	}
+	return -1
+}
+
 func (r *CasbinRule) String() string {
 	const prefixLine = ", "
 	var sb strings.Builder
@@ -163,15 +180,8 @@ func (r *CasbinRule) String() string {
 
 	sb.WriteString(r.Ptype)
 	
-	// Build array of values to determine the last non-empty position
-	values := []string{r.V0, r.V1, r.V2, r.V3, r.V4, r.V5}
-	lastIndex := -1
-	for i := len(values) - 1; i >= 0; i-- {
-		if values[i] != "" {
-			lastIndex = i
-			break
-		}
-	}
+	values := r.getValues()
+	lastIndex := r.getLastNonEmptyIndex()
 	
 	// Include all values up to and including the last non-empty one
 	// This preserves empty strings in the middle while trimming trailing empty strings
@@ -542,15 +552,8 @@ func (c *CasbinRule) queryString() (string, []interface{}) {
 	queryArgs := []interface{}{c.Ptype}
 	queryStr := "ptype = ?"
 
-	// Build array of values to determine the last non-empty position
-	values := []string{c.V0, c.V1, c.V2, c.V3, c.V4, c.V5}
-	lastIndex := -1
-	for i := len(values) - 1; i >= 0; i-- {
-		if values[i] != "" {
-			lastIndex = i
-			break
-		}
-	}
+	values := c.getValues()
+	lastIndex := c.getLastNonEmptyIndex()
 	
 	// Include all fields up to and including the last non-empty one
 	// This ensures empty strings in the middle are matched explicitly
@@ -569,15 +572,8 @@ func (c *CasbinRule) toStringPolicy() []string {
 		policy = append(policy, c.Ptype)
 	}
 	
-	// Build array of values to determine the last non-empty position
-	values := []string{c.V0, c.V1, c.V2, c.V3, c.V4, c.V5}
-	lastIndex := -1
-	for i := len(values) - 1; i >= 0; i-- {
-		if values[i] != "" {
-			lastIndex = i
-			break
-		}
-	}
+	values := c.getValues()
+	lastIndex := c.getLastNonEmptyIndex()
 	
 	// Include all values up to and including the last non-empty one
 	// This preserves empty strings in the middle while trimming trailing empty strings
