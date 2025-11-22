@@ -156,10 +156,9 @@ func (r *CasbinRule) getValues() []string {
 	return []string{r.V0, r.V1, r.V2, r.V3, r.V4, r.V5}
 }
 
-// getLastNonEmptyIndex returns the index of the last non-empty value in the rule
+// getLastNonEmptyIndex returns the index of the last non-empty value in the given slice
 // Returns -1 if all values are empty
-func (r *CasbinRule) getLastNonEmptyIndex() int {
-	values := r.getValues()
+func getLastNonEmptyIndex(values []string) int {
 	for i := len(values) - 1; i >= 0; i-- {
 		if values[i] != "" {
 			return i
@@ -181,7 +180,7 @@ func (r *CasbinRule) String() string {
 	sb.WriteString(r.Ptype)
 	
 	values := r.getValues()
-	lastIndex := r.getLastNonEmptyIndex()
+	lastIndex := getLastNonEmptyIndex(values)
 	
 	// Include all values up to and including the last non-empty one
 	// This preserves empty strings in the middle while trimming trailing empty strings
@@ -553,7 +552,7 @@ func (c *CasbinRule) queryString() (string, []interface{}) {
 	queryStr := "ptype = ?"
 
 	values := c.getValues()
-	lastIndex := c.getLastNonEmptyIndex()
+	lastIndex := getLastNonEmptyIndex(values)
 	
 	// Include all fields up to and including the last non-empty one
 	// This ensures empty strings in the middle are matched explicitly
@@ -573,7 +572,7 @@ func (c *CasbinRule) toStringPolicy() []string {
 	}
 	
 	values := c.getValues()
-	lastIndex := c.getLastNonEmptyIndex()
+	lastIndex := getLastNonEmptyIndex(values)
 	
 	// Include all values up to and including the last non-empty one
 	// This preserves empty strings in the middle while trimming trailing empty strings
